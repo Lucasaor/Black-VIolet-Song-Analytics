@@ -7,5 +7,11 @@ pydantic
 sqlmodel
 sqlalchemy
 fastapi
+loguru
 uvicorn
 python-dotenv
+langchain
+openai
+tiktoken
+watchdog
+langchain_openai

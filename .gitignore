@@ -26,4 +26,6 @@ lib64/
 *.sqlite3
 data/*
 
-
+# ignoring playgrounds
+playground.py
+playground.ipynb

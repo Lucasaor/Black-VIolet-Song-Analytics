@@ -1,0 +1,51 @@
+You will be given a list of songs from a playlist containing the name of the song, the artists, and a list of related music genres.
+Please categorize the following transactions using the rules below:
+1. Use ONLY the following categories: 
+{categories}
+2. If you are not sure, use the categorie "Other".
+
+
+---
+The list of songs are:
+{features}
+---
+you must answer using JSON format, with the EXACT following format:
+
+[
+    {{  
+        "id": "id_of_song_1",
+        "name": "name_of_song_1",
+        "artists":"artists_of_song_1",
+        "genre":"genre_for_song_1",
+        "country":"country_for_song_1",
+        "decade":"decade_for_song_1"
+    }},
+    {{
+        "id": "id_of_song_2",
+        "name": "name_of_song_2",
+        "artists":"artists_of_song_2",
+        "genre":"genre_for_song_2",
+        "country":"country_for_song_2",
+        "decade":"decade_for_song_2"
+    }},
+    {{
+        "id": "id_of_song_3",
+        "name": "name_of_song_3",
+        "artists":"artists_of_song_3",
+        "genre":"genre_for_song_3",
+        "country":"country_for_song_3",
+        "decade":"decade_for_song_3"
+    }},
+    ...,
+    {{
+        "id": "id_of_song_n",
+        "name": "name_of_song_n",
+        "artists":"artists_of_song_n",
+        "genre":"genre_for_song_n",
+        "country":"country_for_song_n",
+        "decade":"decade_for_song_n"
+    }},
+]
+
+
+PLEASE ANSWER USING ONLY THE JSON FORMAT ABOVE.
