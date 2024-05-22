@@ -15,3 +15,4 @@ openai
 tiktoken
 watchdog
 langchain_openai
+deap 

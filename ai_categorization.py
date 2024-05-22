@@ -1,5 +1,6 @@
 
 from sqlalchemy import create_engine
+from datamodels import ConfigFile
 from loguru import logger
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import JsonOutputParser
@@ -29,10 +30,12 @@ class AIChatCategorization():
         with open(config_file_path) as f:
             self.config = json.load(f)
 
-        self.prompt_templates_path = self.config['AI_configurations']['prompt_templates_filepaths']
-        self.categories = self.config['AI_configurations']['categories']
+        self.config = ConfigFile(**self.config)
 
-        self.llm = ChatOpenAI(model=self.config['AI_configurations']['model'])
+        self.prompt_templates_path = self.config.AI_configurations.prompt_templates_filepaths
+        self.categories = self.config.AI_configurations.categories
+
+        self.llm = ChatOpenAI(model=self.config.AI_configurations.model)
         
     def get_categorization(self, playlist_df:pd.DataFrame, features_columns: list[str], categories_names:list[str]=['genre', 'country', 'decade'])->pd.DataFrame:
         

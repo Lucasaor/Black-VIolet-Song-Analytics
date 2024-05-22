@@ -12,8 +12,9 @@
     },
     "general":
     {
+        "setlist_size": 35,
         "default_playlist_id":"4evPXOhNywrzE0eDUh99Od",
-        "default_optmization_parameters": {
+        "default_optimization_parameters": {
             "max_duration": 150,
             "genre_proportion":{
                 "pop": 0.3,
@@ -31,14 +32,23 @@
                 "10s": 0.15,
                 "other": 0.05
             },
-            "max_songs_per_artist": 3,
+            "max_songs_per_artist": 2,
             "target_features":{
                 "danceability": 0.6,
                 "energy": 0.85,
                 "loudness": -6,
                 "valence": 0.5
             },
-            "minimum_popularity": 75
+            "minimum_popularity": 70
+        },
+        "Optmization_weights":{
+            "max_duration": 1,
+            "genre_proportion": 2,
+            "country_proportion": 3,
+            "decade_proportion": 2,
+            "max_songs_per_artist": 1,
+            "target_features": 0.5,
+            "minimum_popularity": 2
         }
     }
 }

@@ -1,5 +1,6 @@
 import pandas as pd
-from datamodels import configFile
+import numpy as np
+from datamodels import ConfigFile
 import random
 from loguru import logger
 from deap import base, creator, tools
@@ -15,16 +16,46 @@ class PlaylistOptimizer():
         with open(config_file_path) as f:
             self.config = json.load(f)
 
-        self.config = configFile(**self.config)
+        self.config = ConfigFile(**self.config)
 
+        for attr, value in self.config.general.model_dump().items():
+            setattr(self, attr, value)
+        
+        self.optmization_weights = self.config.general.Optmization_weights
         self.default_optimization_parameters = self.config.general.default_optimization_parameters
-    
+        
         self.__initate_toolbox()
 
+    # Calculate the features of the setlist
+    def calculate_setlist_features(self, setlist: pd.DataFrame)->dict:
+        '''function to calculate the features of a setlist
+        '''
+        total_duration_minutes = setlist['duration_ms'].sum()/1000/60
+        setlist_popularity = setlist['popularity'].mean()
+        setlist_genre_proportion = setlist['genre'].value_counts(normalize=True).to_dict()
+        setlist_country_proportion = setlist['country'].value_counts(normalize=True).to_dict()
+        setlist_decade_proportion = setlist['decade'].value_counts(normalize=True).to_dict()
+        setlist_songs_per_artist = setlist['artists'].value_counts().max()
+        setlist_target_features = setlist[['danceability', 'energy', 'loudness', 'valence']].mean().to_dict()
+
+        return {
+            'total_duration_minutes': total_duration_minutes,
+            'setlist_popularity': setlist_popularity,
+            'setlist_genre_proportion': setlist_genre_proportion,
+            'setlist_country_proportion': setlist_country_proportion,
+            'setlist_decade_proportion': setlist_decade_proportion,
+            'setlist_songs_per_artist': setlist_songs_per_artist,
+            'setlist_target_features': setlist_target_features
+        }
+
+
     # Define the fitness function
-    def fitness_function(self,individual):
+    def fitness_function(self,individual:list[list])->float:
+        '''function to calculate the fitness score of an individual setlist. The score should be minimized for the genetic algorithm to work properly.
+        '''
+       
         current_setlist = self.playlist.iloc[individual]
-        total_duration_minutes = current_setlist['duration_ms'].sum()/1000
+        total_duration_minutes = current_setlist['duration_ms'].sum()/1000/60
         
         setlist_popularity = current_setlist['popularity'].mean()
 
@@ -36,36 +67,176 @@ class PlaylistOptimizer():
 
         setlist_target_features = current_setlist[['danceability', 'energy', 'loudness', 'valence']].mean().to_dict()
 
+        # Calculate the fitness score
+        fitness_score = 0
 
-        pass
-    def __initate_toolbox(self):
+        # tolerance levels
+        tolerance_l1 = 0.05
+        tolerance_l2 = 0.1
+        tolerance_l3 = 0.35
+
+        # Calculate the fitness score based on the total duration of the setlist
+        duration_score = 1-abs(total_duration_minutes - self.default_optimization_parameters.max_duration)/self.default_optimization_parameters.max_duration
+        fitness_score += abs(self.optmization_weights['max_duration']*duration_score)
+
+        # Calculate the fitness score based on the popularity of the setlist
+        if setlist_popularity < self.default_optimization_parameters.minimum_popularity:
+            fitness_score += (self.default_optimization_parameters.minimum_popularity - setlist_popularity)*self.optmization_weights['minimum_popularity']
+            
+
+        # Calculate the fitness score based on the genre proportion of the setlist
+        for genre, proportion in self.default_optimization_parameters.genre_proportion.items():
+            genre_proportion = setlist_genre_proportion.get(genre)
+            if genre_proportion is None:
+                fitness_score += 1e4
+                continue
+            if abs(genre_proportion - proportion) < tolerance_l1:
+                continue
+            elif abs(genre_proportion - proportion) < tolerance_l2:
+                genre_score = self.optmization_weights['genre_proportion']*abs(genre_proportion - proportion)*10
+            elif abs(genre_proportion - proportion) < tolerance_l3:
+                genre_score = self.optmization_weights['genre_proportion']*abs(genre_proportion - proportion)*100
+            else:
+                genre_score = self.optmization_weights['genre_proportion']*abs(genre_proportion - proportion)*1000
+
+        # Calculate the fitness score based on the country proportion of the setlist
+        for country, proportion in self.default_optimization_parameters.country_proportion.items():
+            country_proportion = setlist_country_proportion.get(country)
+            if country_proportion is None:
+                fitness_score += 1e5
+                continue
+            if abs(country_proportion - proportion) < tolerance_l1:
+                continue
+            elif abs(country_proportion - proportion) < tolerance_l2:
+                country_score = self.optmization_weights['country_proportion']*abs(country_proportion - proportion)*10
+            elif abs(country_proportion - proportion) < tolerance_l3:
+                country_score = self.optmization_weights['country_proportion']*abs(country_proportion - proportion)*100
+            else:
+                country_score = self.optmization_weights['country_proportion']*abs(country_proportion - proportion)*1000
+        
+        # Calculate the fitness score based on the decade proportion of the setlist
+        for decade, proportion in self.default_optimization_parameters.decade_proportion.items():
+            decade_proportion = setlist_decade_proportion.get(decade)
+            if decade_proportion is None:
+                fitness_score += 1e3
+                continue
+            if abs(decade_proportion - proportion) < tolerance_l1:
+                continue
+            elif abs(decade_proportion - proportion) < tolerance_l2:
+                decade_score = self.optmization_weights['decade_proportion']*abs(decade_proportion - proportion)*10
+            elif abs(decade_proportion - proportion) < tolerance_l3:
+                decade_score = self.optmization_weights['decade_proportion']*abs(decade_proportion - proportion)*100
+            else:
+                decade_score = self.optmization_weights['decade_proportion']*abs(decade_proportion - proportion)*1000
+
+        # Calculate the fitness score based on the maximum number of songs per artist in the setlist
+        if setlist_songs_per_artist.max() > self.default_optimization_parameters.max_songs_per_artist:
+            max_songs_per_artist_score = 1-abs(setlist_songs_per_artist.max() - self.default_optimization_parameters.max_songs_per_artist)/self.default_optimization_parameters.max_songs_per_artist
+            fitness_score += abs(self.optmization_weights['max_songs_per_artist']*max_songs_per_artist_score)
+
+        # Calculate the fitness score based on the target features of the setlist
+        for feature, target_value in self.default_optimization_parameters.target_features.items():
+            feature_score = 1-abs(setlist_target_features.get(feature, 0) - target_value)/target_value
+            fitness_score += abs(self.optmization_weights['target_features']*feature_score)
+
+        # Check if the playlist has any repeated songs
+        if len(set(current_setlist['id'])) < len(current_setlist):
+            fitness_score += 1e6*len(current_setlist) - len(set(current_setlist['id']))
+        
+        # ensure the fitness score is always positive
+        fitness_score = max(0, fitness_score)
+        
+        return fitness_score,
+    
+    def __initate_toolbox(self)->None:
         logger.info('Initializing genetic algorithm toolbox')
         # Define the genetic algorithm functions
-        creator.create("FitnessMax", base.Fitness, weights=(1.0,))
-        creator.create("Individual", list, fitness=creator.FitnessMax)
+        creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+        creator.create("Individual", list, fitness=creator.FitnessMin)
 
         toolbox = base.Toolbox()
         toolbox.register("individual", tools.initIterate, creator.Individual, self.create_individual)
         toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
         toolbox.register("evaluate", self.fitness_function)
-        toolbox.register("mate", tools.cxTwoPoint)
-        toolbox.register("mutate", tools.mutShuffleIndexes, indpb=0.05)
-        toolbox.register("select", tools.selTournament, tournsize=3)
+        toolbox.register("mate", self.__cxTwoPoint)
+        toolbox.register("mutate", self.__mutateRandomSong, indpb=0.05)
+        toolbox.register("select", tools.selTournament, tournsize=5)
+
+        self.toolbox= toolbox
 
     def load_playlist(self, playlist: pd.DataFrame) -> None:
         self.playlist = playlist
 
+    def remove_duplicates(self, individual:list):
+        current_setlist = self.playlist.iloc[individual]
+
+        repeated_songs = current_setlist[current_setlist.duplicated(subset='id')]
+
+        if repeated_songs.empty:
+            return individual
+        
+        for song in repeated_songs['id']:
+            repeated_song_genre = current_setlist[current_setlist['id'] == song]['genre'].values[0]
+            repeated_song_country = current_setlist[current_setlist['id'] == song]['country'].values[0]
+            repeated_song_decade = current_setlist[current_setlist['id'] == song]['decade'].values[0]
+
+            repeated_song_index = current_setlist[current_setlist['id'] == song].index[0]
+            individual.remove(repeated_song_index)
+            available_songs:pd.DataFrame = self.playlist[
+                (self.playlist['genre'] == repeated_song_genre) &
+                (self.playlist['country'] == repeated_song_country) &
+                (self.playlist['decade'] == repeated_song_decade) &
+                (~self.playlist.index.isin(individual))
+            ]
+            if available_songs.empty:
+                available_songs = self.playlist[~self.playlist.index.isin(individual)]
+            new_song = random.choice(available_songs.index.to_list())
+            individual.append(new_song)
+
+        return individual,
+    
+    def __mutateRandomSong(self,individual:list[list], indpb):
+        size = len(individual)
+        available_songs = self.playlist[~self.playlist.index.isin(individual)]
+        for i in range(size):
+            if random.random() < indpb:
+                
+                new_song = random.choice(available_songs.index.to_list())
+                individual[i] = new_song
+        
+        individual = self.remove_duplicates(individual)
+
+        return individual,
+
+    def __cxTwoPoint(self,ind1:dict, ind2:dict):
+        size = min(len(ind1), len(ind2))
+        cxpoint1 = random.randint(1, size)
+        cxpoint2 = random.randint(1, size - 1)
+        if cxpoint2 >= cxpoint1:
+            cxpoint2 += 1
+        else:  # Swap the two cx points
+            cxpoint1, cxpoint2 = cxpoint2, cxpoint1
+
+        ind1[cxpoint1:cxpoint2], ind2[cxpoint1:cxpoint2] \
+            = ind2[cxpoint1:cxpoint2], ind1[cxpoint1:cxpoint2]
+
+        ind1 = self.remove_duplicates(ind1)
+        ind2 = self.remove_duplicates(ind2)
+
+        return ind1, ind2
+
+
 
     # Define the initial population
-    def create_individual(dataframe):
-        return random.sample(range(len(dataframe)), 30)
+    def create_individual(self):
+        return random.sample(self.playlist.index.to_list(), self.setlist_size)
 
     # Implement the main genetic algorithm loop
     def run_ga(self):
         logger.info('Running genetic algorithm')
-        pop = self.toolbox.population(n=50)
-        CXPB, MUTPB, NGEN = 0.5, 0.2, 40
+        pop = self.toolbox.population(n=100)
+        CXPB, MUTPB, NGEN = 0.5, 0.05, 50
 
         # Evaluate the entire population
         logger.info('Evaluating initial population')
