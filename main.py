@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from ai_categorization import AIChatCategorization
 from playlist_optmizer import PlaylistOptimizer
+from playlist_clusterer import PlaylistClusterer
 from loguru import logger
 import pandas as pd
 
@@ -13,6 +14,7 @@ def main():
     playlist = pd.read_sql('playlist', con=engine)
 
     playlist_optimizer = PlaylistOptimizer()
+    playlist_clusterer = PlaylistClusterer()
 
     logger.info('Running the genetic algorithm')
     playlist_optimizer.load_playlist(playlist)
@@ -23,6 +25,9 @@ def main():
     result = playlist_optimizer.remove_duplicates(result)
 
     result_df:pd.DataFrame = playlist.loc[result]
+
+    logger.info("adding cluster column")
+    result_df = playlist_clusterer.cluster_pipeline(result_df)
 
     logger.info('Saving the optimized playlist')
     result_df.to_sql('current_playlist', con=engine, if_exists='replace', index=False)
