@@ -1,46 +1,70 @@
 from sqlalchemy import create_engine
-from ai_categorization import AIChatCategorization
-from playlist_optmizer import PlaylistOptimizer
-from playlist_clusterer import PlaylistClusterer
+from song_analytics import SongAnalytics
+from datamodels import ConfigFile
+import json
 from loguru import logger
 import pandas as pd
+import streamlit as st
+import asyncio
 
 
 def main():
-    logger.info('Starting the playlist optimization process')
-    engine = create_engine('sqlite:///data/data.db', echo=False)
+    st.title('Black Violet Song Analytics')
+    st.write('Este é o aplicativo de análise de setlists da banda Black Violet')
 
-    logger.info('Loading the playlist data')
-    playlist = pd.read_sql('playlist', con=engine)
+    # Load the config file
+    config_file_path='config/config.json'
+    with open(config_file_path) as f:
+        config = json.load(f)
+    config = ConfigFile(**config)
+    
+    song_analytics = SongAnalytics()
 
-    playlist_optimizer = PlaylistOptimizer()
-    playlist_clusterer = PlaylistClusterer()
 
-    logger.info('Running the genetic algorithm')
-    playlist_optimizer.load_playlist(playlist)
+    # Create a menu to edit the "General" field in the config file
+    with st.sidebar:
+        st.write("# Configurações gerais")
+        config.general.setlist_size = st.number_input("Número de músicas no setlist", value=config.general.setlist_size)
+        config.general.default_optimization_parameters.max_duration = st.number_input("Duração máxima do setlist (em minutos)", value=config.general.default_optimization_parameters.max_duration)
+        config.general.default_optimization_parameters.max_songs_per_artist = st.number_input("Número máximo de músicas por artista", value=config.general.default_optimization_parameters.max_songs_per_artist)
+        config.general.default_optimization_parameters.minimum_popularity = st.slider("Popularidade mínima das músicas", min_value=0, max_value=100, value=config.general.default_optimization_parameters.minimum_popularity)
 
+        st.write("## Proporção de gêneros")
+        config.general.default_optimization_parameters.genre_proportion["rock"] = st.slider("Rock", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.genre_proportion["rock"])
+        config.general.default_optimization_parameters.genre_proportion["pop"] = st.slider("Pop", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.genre_proportion["pop"])
+        config.general.default_optimization_parameters.genre_proportion["metal"] = st.slider("Metal", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.genre_proportion["metal"])
+        config.general.default_optimization_parameters.genre_proportion["other"] = st.slider("Outros gêneros", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.genre_proportion["other"])
 
-    result = playlist_optimizer.run_ga()
+        st.write("## Proporção de países")
+        config.general.default_optimization_parameters.country_proportion["BR"] = st.slider("Nacional", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.country_proportion["BR"])
+        config.general.default_optimization_parameters.country_proportion["international"] = st.slider("Internacional", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.country_proportion["international"])
 
-    result = playlist_optimizer.remove_duplicates(result)
+        st.write("## Proporção de décadas")
+        config.general.default_optimization_parameters.decade_proportion["90s"] = st.slider("Anos 90", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.decade_proportion["90s"])
+        config.general.default_optimization_parameters.decade_proportion["00s"] = st.slider("Anos 2000", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.decade_proportion["00s"])
+        config.general.default_optimization_parameters.decade_proportion["10s"] = st.slider("Anos 2010", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.decade_proportion["10s"])
+        config.general.default_optimization_parameters.decade_proportion["other"] = st.slider("Outras décadas", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.decade_proportion["other"])
 
-    result_df:pd.DataFrame = playlist.loc[result]
+        st.write("## Características desejadas das músicas")
+        config.general.default_optimization_parameters.target_features["danceability"] = st.slider("Dançante", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.target_features["danceability"])
+        config.general.default_optimization_parameters.target_features["energy"] = st.slider("Energia", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.target_features["energy"])
+        config.general.default_optimization_parameters.target_features["valence"] = st.slider("Valência", min_value=0.0, max_value=1.0, value=config.general.default_optimization_parameters.target_features["valence"])
+        config.general.default_optimization_parameters.target_features["loudness"] = st.slider("Volume", min_value=-10.0, max_value=0.0, value=config.general.default_optimization_parameters.target_features["loudness"])
 
-    logger.info("adding cluster column")
-    result_df = playlist_clusterer.cluster_pipeline(result_df)
+        st.write("## Pesos das características")
+        config.general.Optmization_weights["max_duration"] = st.slider("Duração máxima", min_value=0.0, max_value=5.0, value=config.general.Optmization_weights["max_duration"])
+        config.general.Optmization_weights["genre_proportion"] = st.slider("Proporção de gênero", min_value=0.0, max_value=5.0, value=config.general.Optmization_weights["genre_proportion"])
+        config.general.Optmization_weights["country_proportion"] = st.slider("Proporção de país", min_value=0.0, max_value=5.0, value=config.general.Optmization_weights["country_proportion"])
+        config.general.Optmization_weights["decade_proportion"] = st.slider("Proporção de década", min_value=0.0, max_value=5.0, value=config.general.Optmization_weights["decade_proportion"])
+        config.general.Optmization_weights["max_songs_per_artist"] = st.slider("Máximo de músicas por artista", min_value=0.0, max_value=5.0, value=config.general.Optmization_weights["max_songs_per_artist"])
+        config.general.Optmization_weights["minimum_popularity"] = st.slider("Popularidade mínima", min_value=0.0, max_value=5.0, value=config.general.Optmization_weights["minimum_popularity"])
+        config.general.Optmization_weights["target_features"] = st.slider("Características desejadas", min_value=0.0, max_value=5.0, value=config.general.Optmization_weights["target_features"])
 
-    logger.info('Saving the optimized playlist')
-    result_df.to_sql('current_playlist', con=engine, if_exists='replace', index=False)
-    logger.info('Optimized playlist:')
-    print(result_df[['name', 'artists']])
+        if st.button("Exportar configurações"):
+            with open(config_file_path, 'w') as f:
+                json.dump(config.model_dump(), f, indent=4)
+                st.write("Configurações exportadas com sucesso!")
 
-    setlist_features = playlist_optimizer.calculate_setlist_features(result_df)
-    logger.info('Setlist features:')
-    print(setlist_features)
-
-    score = playlist_optimizer.fitness_function(result)
-    logger.info('Setlist score:')
-    print(score)
 
 
 if __name__ == '__main__':

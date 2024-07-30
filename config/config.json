@@ -15,7 +15,7 @@
         "setlist_size": 35,
         "default_playlist_id":"4evPXOhNywrzE0eDUh99Od",
         "default_optimization_parameters": {
-            "max_duration": 150,
+            "max_duration": 130,
             "genre_proportion":{
                 "pop": 0.3,
                 "rock": 0.45,
@@ -27,9 +27,9 @@
                 "international": 0.65
             },
             "decade_proportion":{
-                "90s": 0.15,
-                "00s": 0.65,
-                "10s": 0.15,
+                "90s": 0.00,
+                "00s": 0.85,
+                "10s": 0.10,
                 "other": 0.05
             },
             "max_songs_per_artist": 2,

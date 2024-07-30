@@ -2,7 +2,7 @@ You will be given a list of songs from a playlist containing the name of the son
 Please categorize the following transactions using the rules below:
 1. Use ONLY the following categories: 
 {categories}
-2. If you are not sure, use the categorie "Other".
+2. If you are not sure, use the categories "Other".
 
 
 ---
