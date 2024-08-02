@@ -44,7 +44,7 @@ class SpotifyApiManager():
                 ) as response:
                     response_json = await response.json()
                     self.token = response_json['access_token']
-
+                        
     async def get_playlist_tracks(self, playlist_id:str, country:str='BR')->list:
         track_list = []
         await self.get_token()
@@ -167,3 +167,47 @@ class SpotifyApiManager():
             track['genres'] = ','.join(track_genres)
         return playlist
     
+    async def create_setlist_playlist(self, playlist_name:str, playlist_description:str, playlist_tracks:list[str])->str:
+        await self.get_token()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f'{self.api_base_url}/users/{os.environ.get("user_id")}/playlists',
+                headers={
+                    'Authorization': f'Bearer {self.token}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'name': playlist_name,
+                    'description': playlist_description,
+                    'public': False
+                }
+            ) as response:
+                response_json = await response.json()
+                playlist_id = response_json['id']
+                playlist_tracks = [{'uri': f'spotify:track:{track}'} for track in playlist_tracks]
+                await session.post(
+                    f'{self.api_base_url}/playlists/{playlist_id}/tracks',
+                    headers={
+                        'Authorization': f'Bearer {self.token}',
+                        'Content-Type': 'application/json'
+                    },
+                    json={
+                        'uris': playlist_tracks
+                    }
+                )
+        return playlist_id
+    
+    async def update_setlist_playlist(self, playlist_id:str, playlist_tracks:list[str])->None:
+        await self.get_token()
+        async with aiohttp.ClientSession() as session:
+            playlist_tracks = [{'uri': f'spotify:track:{track}'} for track in playlist_tracks]
+            await session.put(
+                f'{self.api_base_url}/playlists/{playlist_id}/tracks',
+                headers={
+                    'Authorization': f'Bearer {self.token}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'uris': playlist_tracks
+                }
+            )

@@ -38,33 +38,48 @@ class AIChatCategorization():
         self.llm = ChatOpenAI(model=self.config.AI_configurations.model)
         
     def get_categorization(self, playlist_df:pd.DataFrame, features_columns: list[str], categories_names:list[str]=['genre', 'country', 'decade'])->pd.DataFrame:
-        
+        logger.info("Starting the categorization process")
         playlist_df[categories_names] = None
         
         categorization_prompt_file = self.prompt_templates_path["categorization"]
         with open(categorization_prompt_file) as f:
             categorization_prompt = f.read()
-
+        logger.info("Prompt loaded")
         parser = JsonOutputParser(pydantic_object=song_features)
         prompt = PromptTemplate(
             template=categorization_prompt,
             input_variables=["features", "categories"],
             partial_variables={"format_instructions": parser.get_format_instructions()}
         )
-
+        logger.info("Prompt created")
         chain = prompt | self.llm | parser
-
+        logger.info("Chain created")
         chunk_size = 30
         data_categories = pd.DataFrame()
+        if len(playlist_df) < chunk_size:
+            logger.info("performing categorization in one go")
+            features: dict = playlist_df[playlist_df[categories_names].isnull().all(axis=1)][features_columns].to_dict(orient='records')
+            logger.info("Categorizing songs with OpenAI LLM")
+            response = chain.invoke({"features": features, "categories": self.categories})
+            logger.info(f"Categorization don for iteration {i}, response length: {len(response)}")
+            data_categories = pd.concat([data_categories,pd.DataFrame(response)],ignore_index=True)
+            logger.info(f"{len(playlist_df)} songs categorized. current response length: {len(data_categories)}")
+            for id in data_categories['id']:
+                playlist_df.loc[playlist_df['id'] == id, categories_names] = data_categories.loc[data_categories['id'] == id, categories_names].values
+            return playlist_df
+        
+        logger.info("entering categorization loop")
         for i in range(0, len(playlist_df), chunk_size):
             chunk = playlist_df[i:i+chunk_size]
             features: dict = chunk[chunk[categories_names].isnull().all(axis=1)][features_columns].to_dict(orient='records')
             logger.info("Categorizing songs with OpenAI LLM")
             response = chain.invoke({"features": features, "categories": self.categories})
+            logger.info(f"Categorization don for iteration {i}, response length: {len(response)}")
             data_categories = pd.concat([data_categories,pd.DataFrame(response)],ignore_index=True)
             logger.info(f"{i+chunk_size}/{len(playlist_df)} songs categorized. current response length: {len(data_categories)}")
         
-        playlist_df.update(data_categories)
+        for id in data_categories['id']:
+                playlist_df.loc[playlist_df['id'] == id, categories_names] = data_categories.loc[data_categories['id'] == id, categories_names].values
         return playlist_df
 
 

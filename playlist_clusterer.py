@@ -46,6 +46,7 @@ class PlaylistClusterer:
     def cluster_pipeline(self, df:pd.DataFrame)->pd.DataFrame:
         df['key'] = df['key'].map(self.pitch_notation)
         input_df = df[self.numerical_features + self.categorical_features]
+        input_df = input_df.fillna(0.0)
         self.pipeline.fit(input_df)
         df['cluster'] = self.pipeline.predict(input_df)
 
